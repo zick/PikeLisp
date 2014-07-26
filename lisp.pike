@@ -34,6 +34,7 @@ LObj makeSym(string s) {
   }
   return sym_table[s];
 }
+LObj sym_t = makeSym("t");
 LObj sym_quote = makeSym("quote");
 
 class Error {
@@ -188,13 +189,47 @@ string printList(LObj obj) {
   }
 }
 
+LObj findVar(LObj sym, LObj env) {
+  while (consp(env)) {
+    LObj alist = env.car;
+    while (consp(alist)) {
+      if (alist.car.car == sym) {
+        return alist.car;
+      }
+      alist = alist.cdr;
+    }
+    env = env.cdr;
+  }
+  return kNil;
+}
+
+LObj g_env = Cons(kNil, kNil);
+
+void addToEnv(LObj sym, LObj val, LObj env) {
+  env.car = Cons(Cons(sym, val), env.car);
+}
+
+LObj eval(LObj obj, LObj env) {
+  if (nilp(obj) || nump(obj) || errorp(obj)) {
+    return obj;
+  } else if (symp(obj)) {
+    LObj bind = findVar(obj, env);
+    if (bind == kNil) {
+      return Error(obj.str + " has no value");
+    }
+    return bind.cdr;
+  }
+  return Error("noimpl");
+}
+
 int main()
 {
+  addToEnv(sym_t, sym_t, g_env);
   write("> ");
   while(string line = Stdio.stdin.gets()) {
     LObj o = makeNumOrSym(line);
     ParseState s = read(line);
-    write("%s", printObj(s.obj));
+    write("%s", printObj(eval(s.obj, g_env)));
     write("\n> ");
   }
 }
