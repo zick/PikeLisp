@@ -34,6 +34,7 @@ LObj makeSym(string s) {
   }
   return sym_table[s];
 }
+LObj sym_quote = makeSym("quote");
 
 class Error {
   inherit LObj;
@@ -60,6 +61,17 @@ LObj safeCar(LObj x) {
 LObj safeCdr(LObj x) {
   if (consp(x)) return x.cdr;
   return kNil;
+}
+
+LObj nreverse(LObj lst) {
+  LObj ret = kNil;
+  while (consp(lst)) {
+    LObj tmp = lst.cdr;
+    lst.cdr = ret;
+    ret = lst;
+    lst = tmp;
+  }
+  return ret;
 }
 
 bool spacep(int c) {
@@ -114,11 +126,31 @@ ParseState read(string s) {
   } else if (s[0] == kRPar) {
     return parseError("invalid syntax: " + s);
   } else if (s[0] == kLPar) {
-    return parseError("noimpl");
+    return readList(s[1..strlen(s) - 1]);
   } else if (s[0] == kQuote) {
-    return parseError("noimpl");
+    ParseState tmp = read(s[1..strlen(s) - 1]);
+    return ParseState(Cons(sym_quote, Cons(tmp.obj, kNil)), tmp.next);
   }
   return readAtom(s);
+}
+
+ParseState readList(string s) {
+  LObj ret = kNil;
+  while (true) {
+    s = skipSpaces(s);
+    if (strlen(s) == 0) {
+      return parseError("unfinished parenthesis");
+    } else if (s[0] == kRPar) {
+      break;
+    }
+    ParseState tmp = read(s);
+    if (errorp(tmp.obj)) {
+      return tmp;
+    }
+    ret = Cons(tmp.obj, ret);
+    s = tmp.next;
+  }
+  return ParseState(nreverse(ret), s[1..strlen(s) - 1]);
 }
 
 string printObj(LObj obj) {
@@ -130,8 +162,29 @@ string printObj(LObj obj) {
     return obj.str;
   } else if (errorp(obj)) {
     return "<error: " + obj.str + ">";
+  } else if (consp(obj)) {
+    return printList(obj);
   } else {
     return "<unknown>";
+  }
+}
+
+string printList(LObj obj) {
+  string ret = "";
+  bool first = true;
+  while (consp(obj)) {
+    if (first) {
+      first = false;
+    } else {
+      ret += " ";
+    }
+    ret += printObj(obj.car);
+    obj = obj.cdr;
+  }
+  if (obj == kNil) {
+    return "(" + ret + ")";
+  } else {
+    return "(" + ret + " . " + printObj(obj) + ")";
   }
 }
 
