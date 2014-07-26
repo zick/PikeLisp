@@ -38,6 +38,7 @@ LObj sym_t = makeSym("t");
 LObj sym_quote = makeSym("quote");
 LObj sym_if = makeSym("if");
 LObj sym_lambda = makeSym("lambda");
+LObj sym_defun = makeSym("defun");
 
 class Error {
   inherit LObj;
@@ -271,6 +272,11 @@ LObj eval(LObj obj, LObj env) {
     return eval(safeCar(safeCdr(args)), env);
   } else if (op == sym_lambda) {
     return makeExpr(args, env);
+  } else if (op == sym_defun) {
+    LObj expr = makeExpr(safeCdr(args), env);
+    LObj sym = safeCar(args);
+    addToEnv(sym, expr, g_env);
+    return sym;
   }
   return apply(eval(op, env), evlis(args, env));
 }
