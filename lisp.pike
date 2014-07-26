@@ -340,12 +340,83 @@ LObj subrCons(LObj args) {
   return Cons(safeCar(args), safeCar(safeCdr(args)));
 }
 
+LObj subrEq(LObj args) {
+  LObj x = safeCar(args);
+  LObj y = safeCar(safeCdr(args));
+  if (nump(x) && nump(y) && x.num == y.num) {
+    return sym_t;
+  } else if (x == y) {
+    return sym_t;
+  }
+  return kNil;
+}
+
+LObj subrAtom(LObj args) {
+  if (consp(safeCar(args))) {
+    return kNil;
+  }
+  return sym_t;
+}
+
+LObj subrNumberp(LObj args) {
+  if (nump(safeCar(args))) {
+    return sym_t;
+  }
+  return kNil;
+}
+
+LObj subrSymbolp(LObj args) {
+  if (symp(safeCar(args))) {
+    return sym_t;
+  }
+  return kNil;
+}
+
+LObj subrAddOrMul(mixed fn, int init_val, LObj args) {
+  int ret = init_val;
+  while (consp(args)) {
+    LObj elm = safeCar(args);
+    if (!nump(elm)) return Error("wrong type");
+    ret = fn(ret, elm.num);
+    args = safeCdr(args);
+  }
+  return Num(ret);
+}
+int calc_add(int x, int y) { return x + y; }
+int calc_mul(int x, int y) { return x * y; }
+LObj subrAdd(LObj args) { return subrAddOrMul(calc_add, 0, args); }
+LObj subrMul(LObj args) { return subrAddOrMul(calc_mul, 1, args); }
+
+LObj subrSubOrDivOrMod(mixed fn, LObj args) {
+  LObj x = safeCar(args);
+  LObj y = safeCar(safeCdr(args));
+  if (!nump(x) || !nump(y)) {
+    return Error("wrong type");
+  }
+  return Num(fn(x.num, y.num));
+}
+int calc_sub(int x, int y) { return x - y; }
+int calc_div(int x, int y) { return x / y; }
+int calc_mod(int x, int y) { return x % y; }
+LObj subrSub(LObj args) { return subrSubOrDivOrMod(calc_sub, args); }
+LObj subrDiv(LObj args) { return subrSubOrDivOrMod(calc_div, args); }
+LObj subrMod(LObj args) { return subrSubOrDivOrMod(calc_mod, args); }
+
 int main()
 {
   addToEnv(sym_t, sym_t, g_env);
   addToEnv(makeSym("car"), Subr(subrCar), g_env);
   addToEnv(makeSym("cdr"), Subr(subrCdr), g_env);
   addToEnv(makeSym("cons"), Subr(subrCons), g_env);
+  addToEnv(makeSym("eq"), Subr(subrEq), g_env);
+  addToEnv(makeSym("atom"), Subr(subrAtom), g_env);
+  addToEnv(makeSym("numberp"), Subr(subrNumberp), g_env);
+  addToEnv(makeSym("symbolp"), Subr(subrSymbolp), g_env);
+  addToEnv(makeSym("+"), Subr(subrAdd), g_env);
+  addToEnv(makeSym("*"), Subr(subrMul), g_env);
+  addToEnv(makeSym("-"), Subr(subrSub), g_env);
+  addToEnv(makeSym("/"), Subr(subrDiv), g_env);
+  addToEnv(makeSym("mod"), Subr(subrMod), g_env);
   write("> ");
   while(string line = Stdio.stdin.gets()) {
     LObj o = makeNumOrSym(line);
