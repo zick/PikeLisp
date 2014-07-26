@@ -36,6 +36,7 @@ LObj makeSym(string s) {
 }
 LObj sym_t = makeSym("t");
 LObj sym_quote = makeSym("quote");
+LObj sym_if = makeSym("if");
 
 class Error {
   inherit LObj;
@@ -53,6 +54,14 @@ class Cons {
 }
 LObj kCons = Cons(kNil, kNil);
 bool consp(LObj x) { return _typeof(x) == _typeof(kCons); }
+
+class Subr {
+  inherit LObj;
+  mixed fn;
+  void create(mixed f) { fn = f; }
+}
+LObj kSubr = Subr(0);
+bool subrp(LObj x) { return _typeof(x) == _typeof(kSubr); }
 
 LObj safeCar(LObj x) {
   if (consp(x)) return x.car;
@@ -165,6 +174,8 @@ string printObj(LObj obj) {
     return "<error: " + obj.str + ">";
   } else if (consp(obj)) {
     return printList(obj);
+  } else if (subrp(obj)) {
+    return "<subr>";
   } else {
     return "<unknown>";
   }
@@ -219,12 +230,64 @@ LObj eval(LObj obj, LObj env) {
     }
     return bind.cdr;
   }
-  return Error("noimpl");
+  LObj op = safeCar(obj);
+  LObj args = safeCdr(obj);
+  if (op == sym_quote) {
+    return safeCar(args);
+  } else if (op == sym_if) {
+    LObj c = eval(safeCar(args), env);
+    if (errorp(c)) {
+      return c;
+    } else if (c == kNil) {
+      return eval(safeCar(safeCdr(safeCdr(args))), env);
+    }
+    return eval(safeCar(safeCdr(args)), env);
+  }
+  return apply(eval(op, env), evlis(args, env));
+}
+
+LObj evlis(LObj lst, LObj env) {
+  LObj ret = kNil;
+  while (consp(lst)) {
+    LObj elm = eval(lst.car, env);
+    if (errorp(elm)) {
+      return elm;
+    }
+    ret = Cons(elm, ret);
+    lst = lst.cdr;
+  }
+  return nreverse(ret);
+}
+
+LObj apply(LObj fn, LObj args) {
+  if (errorp(fn)) {
+    return fn;
+  } else if (errorp(args)) {
+    return args;
+  } else if (subrp(fn)) {
+    return fn.fn(args);
+  }
+  return Error(printObj(fn) + " is not function");
+}
+
+LObj subrCar(LObj args) {
+  return safeCar(safeCar(args));
+}
+
+LObj subrCdr(LObj args) {
+  return safeCdr(safeCar(args));
+}
+
+LObj subrCons(LObj args) {
+  return Cons(safeCar(args), safeCar(safeCdr(args)));
 }
 
 int main()
 {
   addToEnv(sym_t, sym_t, g_env);
+  addToEnv(makeSym("car"), Subr(subrCar), g_env);
+  addToEnv(makeSym("cdr"), Subr(subrCdr), g_env);
+  addToEnv(makeSym("cons"), Subr(subrCons), g_env);
   write("> ");
   while(string line = Stdio.stdin.gets()) {
     LObj o = makeNumOrSym(line);
