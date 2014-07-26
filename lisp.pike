@@ -37,6 +37,7 @@ LObj makeSym(string s) {
 LObj sym_t = makeSym("t");
 LObj sym_quote = makeSym("quote");
 LObj sym_if = makeSym("if");
+LObj sym_lambda = makeSym("lambda");
 
 class Error {
   inherit LObj;
@@ -63,6 +64,16 @@ class Subr {
 LObj kSubr = Subr(0);
 bool subrp(LObj x) { return _typeof(x) == _typeof(kSubr); }
 
+class Expr {
+  inherit LObj;
+  LObj args;
+  LObj body;
+  LObj env;
+  void create(LObj a, LObj b, LObj e) { args = a; body = b; env = e; }
+}
+LObj kExpr = Expr(kNil, kNil, kNil);
+bool exprp(LObj x) { return _typeof(x) == _typeof(kExpr); }
+
 LObj safeCar(LObj x) {
   if (consp(x)) return x.car;
   return kNil;
@@ -71,6 +82,10 @@ LObj safeCar(LObj x) {
 LObj safeCdr(LObj x) {
   if (consp(x)) return x.cdr;
   return kNil;
+}
+
+LObj makeExpr(LObj args, LObj env) {
+  return Expr(safeCar(args), safeCdr(args), env);
 }
 
 LObj nreverse(LObj lst) {
@@ -82,6 +97,16 @@ LObj nreverse(LObj lst) {
     lst = tmp;
   }
   return ret;
+}
+
+LObj pairlis(LObj lst1, LObj lst2) {
+  LObj ret = kNil;
+  while (consp(lst1) && consp(lst2)) {
+    ret = Cons(Cons(lst1.car, lst2.car), ret);
+    lst1 = lst1.cdr;
+    lst2 = lst2.cdr;
+  }
+  return nreverse(ret);
 }
 
 bool spacep(int c) {
@@ -176,6 +201,8 @@ string printObj(LObj obj) {
     return printList(obj);
   } else if (subrp(obj)) {
     return "<subr>";
+  } else if (exprp(obj)) {
+    return "<expr>";
   } else {
     return "<unknown>";
   }
@@ -242,6 +269,8 @@ LObj eval(LObj obj, LObj env) {
       return eval(safeCar(safeCdr(safeCdr(args))), env);
     }
     return eval(safeCar(safeCdr(args)), env);
+  } else if (op == sym_lambda) {
+    return makeExpr(args, env);
   }
   return apply(eval(op, env), evlis(args, env));
 }
@@ -259,6 +288,15 @@ LObj evlis(LObj lst, LObj env) {
   return nreverse(ret);
 }
 
+LObj progn(LObj body, LObj env) {
+  LObj ret = kNil;
+  while (consp(body)) {
+    ret = eval(body.car, env);
+    body = body.cdr;
+  }
+  return ret;
+}
+
 LObj apply(LObj fn, LObj args) {
   if (errorp(fn)) {
     return fn;
@@ -266,6 +304,8 @@ LObj apply(LObj fn, LObj args) {
     return args;
   } else if (subrp(fn)) {
     return fn.fn(args);
+  } else if (exprp(fn)) {
+    return progn(fn.body, Cons(pairlis(fn.args, args), fn.env));
   }
   return Error(printObj(fn) + " is not function");
 }
