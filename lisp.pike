@@ -39,6 +39,7 @@ LObj sym_quote = makeSym("quote");
 LObj sym_if = makeSym("if");
 LObj sym_lambda = makeSym("lambda");
 LObj sym_defun = makeSym("defun");
+LObj sym_setq = makeSym("setq");
 
 class Error {
   inherit LObj;
@@ -277,6 +278,17 @@ LObj eval(LObj obj, LObj env) {
     LObj sym = safeCar(args);
     addToEnv(sym, expr, g_env);
     return sym;
+  } else if (op == sym_setq) {
+    LObj val = eval(safeCar(safeCdr(args)), env);
+    if (errorp(val)) return val;
+    LObj sym = safeCar(args);
+    LObj bind = findVar(sym, env);
+    if (bind == kNil) {
+      addToEnv(sym, val, g_env);
+    } else {
+      bind.cdr = val;
+    }
+    return val;
   }
   return apply(eval(op, env), evlis(args, env));
 }
